@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<title>OBD-Live</title>
+<style>
+ body{margin:0;background:#000;color:#fff;font-family:sans-serif}
+ header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #444}
+ h1{margin:0;font-size:20px;color:#0ff;flex:1}
+ #status{font-size:14px;color:#888}
+ button{font-size:16px;padding:8px 14px;border:0;border-radius:8px;background:#0aa;color:#000;font-weight:bold}
+ button:disabled{background:#333;color:#777}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;padding:12px}
+ .kachel{background:#111;border-radius:10px;padding:12px}
+ .name{font-size:15px;color:#ccc}
+ .wert{font-size:40px;font-weight:bold;text-align:right;font-variant-numeric:tabular-nums}
+ .einheit{font-size:14px;color:#888;text-align:right}
+ .alt{color:#555!important}
+ #hinweis{padding:0 14px;color:#f80;font-size:14px}
+</style></head><body>
+<header><h1>OBD-Live</h1><span id="status">getrennt</span><button id="knopf">Verbinden</button></header>
+<p id="hinweis"></p>
+<div class="grid" id="grid"></div>
+<script>
+// müssen mit ble_anzeige/src/main.cpp übereinstimmen
+const SERVICE_UUID = "263ce341-1fb4-4abd-b38b-3bc1ea241e76";
+const WERTE_UUID   = "8038be20-f5a2-421c-83ab-91d6e985bf0d";
+
+// Reihenfolge wie enum Wert; skala wie SKALA[] in der Firmware
+const W = [["drehzahl","Drehzahl","U/min",0,1],["tempo","Tempo","km/h",0,1],
+ ["kuehlmittel","Kühlmittel","°C",0,1],["batterie","Batterie","V",1,100],
+ ["ladedruck","Ladedruck","bar",2,100],["raildruck","Raildruck","bar",0,1],
+ ["luftmasse","Luftmasse","g/s",1,10],["last","Motorlast","%",0,1]];
+const STATUS = ["Start","verbinde mit Auto…","kein Bluetooth zum Adapter","ELM327 stumm","verbunden","Verbindung weg"];
+
+const $ = id => document.getElementById(id);
+for (const [id, name, einheit] of W)
+  $("grid").insertAdjacentHTML("beforeend",
+    `<div class="kachel"><div class="name">${name}</div><div class="wert alt" id="${id}">--</div><div class="einheit">${einheit}</div></div>`);
+
+function farbe(id, v) {
+  if (id == "kuehlmittel") return v < 70 ? "#0ff" : v > 105 ? "#f00" : "#0f0";
+  if (id == "batterie") return (v < 11.8 || v > 15) ? "#f00" : "#0f0";
+  return "#fff";
+}
+
+function alleUngueltig() {
+  for (const [id] of W) { $(id).textContent = "--"; $(id).classList.add("alt"); }
+}
+
+// 17-Byte-Paket: 8 x int16 LE (-32768 = ungültig), 1 x Status
+function empfange(e) {
+  const d = e.target.value;
+  W.forEach(([id, , , nk, skala], i) => {
+    const roh = d.getInt16(2 * i, true), el = $(id);
+    if (roh == -32768) { el.textContent = "--"; el.classList.add("alt"); return; }
+    const v = roh / skala;
+    el.textContent = v.toFixed(nk); el.classList.remove("alt"); el.style.color = farbe(id, v);
+  });
+  $("status").textContent = "ESP32: " + (STATUS[d.getUint8(16)] ?? "?");
+}
+
+let geraet = null;
+
+async function verbinde() {
+  $("knopf").disabled = true;
+  $("status").textContent = "verbinde…";
+  try {
+    const server = await geraet.gatt.connect();
+    const dienst = await server.getPrimaryService(SERVICE_UUID);
+    const werte  = await dienst.getCharacteristic(WERTE_UUID);
+    werte.addEventListener("characteristicvaluechanged", empfange);
+    await werte.startNotifications();
+    $("status").textContent = "verbunden";
+    $("knopf").textContent = "Trennen";
+  } catch (err) {
+    $("status").textContent = "Fehler: " + err.message;
+    $("knopf").textContent = "Verbinden";
+  }
+  $("knopf").disabled = false;
+}
+
+// Verbindung abgerissen (z. B. Zündung aus): alle 3 s neu versuchen
+function getrennt() {
+  alleUngueltig();
+  $("knopf").textContent = "Verbinden";
+  if (!geraet) return;
+  $("status").textContent = "getrennt – versuche neu…";
+  setTimeout(() => { if (geraet && !geraet.gatt.connected) verbinde(); }, 3000);
+}
+
+$("knopf").onclick = async () => {
+  if (geraet && geraet.gatt.connected) {   // Trennen
+    const g = geraet; geraet = null; g.gatt.disconnect();
+    $("status").textContent = "getrennt";
+    return;
+  }
+  try {
+    geraet = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
+    geraet.addEventListener("gattserverdisconnected", getrennt);
+    verbinde();
+  } catch (err) {
+    geraet = null;
+    $("status").textContent = err.name == "NotFoundError" ? "kein Gerät gewählt" : "Fehler: " + err.message;
+  }
+};
+
+if (!navigator.bluetooth) {
+  $("knopf").disabled = true;
+  $("hinweis").textContent = "Dieser Browser kann kein Bluetooth. Bitte Chrome auf Android verwenden "
+    + "(Seite muss über https geöffnet sein).";
+}
+
+// Bildschirm anlassen, solange die Seite offen ist
+async function wachBleiben() { try { await navigator.wakeLock.request("screen"); } catch (e) {} }
+wachBleiben();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState == "visible") wachBleiben(); });
+
+// offline nutzbar machen (Auto ohne Netz)
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+</script></body></html>
