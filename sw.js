@@ -1,6 +1,6 @@
 // Speichert die Seite beim ersten Aufruf, danach geht sie auch ohne Netz.
 // Bei Änderungen an der Seite die Versionsnummer erhöhen.
-const CACHE = "obd-live-1";
+const CACHE = "obd-live-3";
 const DATEIEN = ["./", "index.html", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", e => {
