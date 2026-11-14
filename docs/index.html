@@ -30,11 +30,11 @@
 <h2>Akku <span id="fets">--</span></h2>
 <div class="grid" id="akku"></div>
 <script>
-// müssen mit ble_anzeige/src/main.cpp übereinstimmen
+// müssen mit src/config.h übereinstimmen
 const SERVICE_UUID = "263ce341-1fb4-4abd-b38b-3bc1ea241e76";
 const WERTE_UUID   = "8038be20-f5a2-421c-83ab-91d6e985bf0d";
 
-// Reihenfolge wie enum Wert; skala wie SKALA[] in der Firmware
+// Reihenfolge wie enum Wert; skala wie PHONE_SCALE[] in src/ble_data.h
 const W = [["drehzahl","Drehzahl","U/min",0,1],["tempo","Tempo","km/h",0,1],
  ["kuehlmittel","Kühlmittel","°C",0,1],["batterie","Batterie","V",1,100],
  ["ladedruck","Ladedruck","bar",2,100],["raildruck","Raildruck","bar",0,1],
@@ -79,7 +79,7 @@ function alleUngueltig() {
   $("zustand").textContent = $("fets").textContent = "--";
 }
 
-// Paketformat siehe Kopf von ble_anzeige/src/main.cpp; erstes Byte = Typ
+// Paketformat siehe "Phone page" in src/ble_data.h; erstes Byte = Typ
 function empfange(e) {
   const d = e.target.value;
   if (d.getUint8(0) == 0) {          // OBD: 8 x int16 (-32768 = ungültig), Status
