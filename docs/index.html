@@ -41,7 +41,7 @@ const W = [["drehzahl","Drehzahl","U/min",0,1],["tempo","Tempo","km/h",0,1],
  ["luftmasse","Luftmasse","g/s",1,10],["last","Motorlast","%",0,1]];
 // Solarwerte aus Paket Typ 1: [id, Name, Einheit, Nachkommastellen]
 const S = [["pv","PV-Leistung","W",0],["ladestrom","Ladestrom","A",1],
- ["akku","Akku","V",2],["ertrag","Ertrag heute","kWh",2]];
+ ["pvakku","Akku","V",2],["ertrag","Ertrag heute","kWh",2]];
 // Akkuwerte aus Paket Typ 2
 const A = [["ladestand","Ladestand","%",0],["akkuspannung","Spannung","V",2],
  ["akkustrom","Strom","A",1],["akkuleistung","Leistung","W",0],
@@ -60,7 +60,7 @@ for (const w of A) $("akku").insertAdjacentHTML("beforeend", kachel(w));
 function farbe(id, v) {
   if (id == "kuehlmittel") return v < 70 ? "#0ff" : v > 105 ? "#f00" : "#0f0";
   if (id == "batterie") return (v < 11.8 || v > 15) ? "#f00" : "#0f0";
-  if (id == "akku") return (v < 12 || v > 14.6) ? "#f00" : "#0f0";
+  if (id == "pvakku") return (v < 12 || v > 14.6) ? "#f00" : "#0f0";
   if (id == "pv") return v > 0 ? "#ff0" : "#888";
   if (id == "ladestand") return v < 20 ? "#f00" : v < 50 ? "#ff0" : "#0f0";
   if (id == "akkustrom" || id == "akkuleistung") return v > 0.1 ? "#0f0" : "#fff";
